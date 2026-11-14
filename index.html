@@ -22,7 +22,7 @@ header{display:flex;justify-content:space-between;align-items:baseline;margin-bo
 h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
 .date{color:var(--mut);font-size:13px;text-transform:capitalize}
 .tabs{display:flex;gap:4px;background:var(--line);padding:3px;border-radius:10px;margin-bottom:22px}
-.tabs button{flex:1;border:0;background:none;color:var(--mut);font:inherit;font-size:15px;font-weight:500;padding:9px;border-radius:8px;cursor:pointer}
+.tabs button{flex:1;border:0;background:none;color:var(--mut);font:inherit;font-size:14px;font-weight:500;padding:9px 4px;white-space:nowrap;border-radius:8px;cursor:pointer}
 .tabs button.on{background:var(--card);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.06)}
 form{display:flex;gap:8px;margin-bottom:18px}
 form input{flex:1;min-width:0;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit;padding:12px 14px;border-radius:10px;outline:none}
@@ -64,6 +64,19 @@ ul{list-style:none}
 .nbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .link{border:0;background:none;color:var(--mut);font:inherit;font-size:14px;cursor:pointer;padding:6px 0}
 .ntitle{width:100%;border:0;background:none;color:var(--fg);font:inherit;font-size:22px;font-weight:600;outline:none;margin-bottom:12px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit;font-size:14px;padding:8px 14px;border-radius:999px;cursor:pointer}
+.chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.big{width:100%;border:0;background:var(--fg);color:var(--bg);font:inherit;font-size:16px;font-weight:600;padding:14px;border-radius:12px;cursor:pointer;margin-bottom:26px}
+.sess h2{font-size:18px;font-weight:600;margin-bottom:14px}
+.set{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}
+.set .n{color:var(--mut);font-size:13px;width:62px}
+.set .r{flex:1;font-weight:600}
+.res{text-align:center;padding:26px 0 30px}
+.res .tot{font-size:52px;font-weight:700;letter-spacing:-.03em}
+.res .sub{color:var(--mut);margin-top:4px}
+.res .cmp{margin-top:10px;font-size:14px;font-weight:500}
+.sm{color:var(--mut);font-size:13px}
 .nbody{width:100%;min-height:55vh;border:0;background:none;color:var(--fg);font:inherit;line-height:1.6;outline:none;resize:none}
 </style>
 </head>
@@ -96,7 +109,14 @@ function dayLabel(k){
   var p=k.split('-');return new Date(+p[0],p[1]-1,+p[2]).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
 }
 var CATS={sport:'Sport',business:'Business'};
-function all(){return Object.keys(S.items).map(function(k){return S.items[k]}).filter(function(i){return !i.deleted&&i.kind!=='note'})}
+function all(){return Object.keys(S.items).map(function(k){return S.items[k]}).filter(function(i){return !i.deleted&&!i.kind})}
+function kind(k){return Object.keys(S.items).map(function(x){return S.items[x]}).filter(function(i){return !i.deleted&&i.kind===k})}
+function sessions(){return kind('session')}
+function activeSess(){return sessions().filter(function(x){return !x.endedAt}).sort(function(a,b){return b.created-a.created})[0]}
+function exos(){var seen={},out=[];['Pompes'].concat(kind('exo').sort(function(a,b){return a.created-b.created}).map(function(e){return e.name}),sessions().map(function(x){return x.exo}))
+  .forEach(function(n){if(!n)return;var k=n.toLowerCase();if(!seen[k]){seen[k]=1;out.push(n)}});return out}
+function sum(a){return (a||[]).reduce(function(x,y){return x+y},0)}
+var exo='Pompes', justDone=null, addingExo=false;
 function notes(){return Object.keys(S.items).map(function(k){return S.items[k]}).filter(function(i){return !i.deleted&&i.kind==='note'}).sort(function(a,b){return b.updated-a.updated})}
 var openNote=null;
 function todo(){return all().filter(function(i){return !i.doneAt}).sort(function(a,b){return a.created-b.created})}
@@ -115,7 +135,7 @@ function gh(method,body){
 }
 function merge(a,b){var out={},ids={};Object.keys(a).concat(Object.keys(b)).forEach(function(k){ids[k]=1});
   Object.keys(ids).sort().forEach(function(k){var x=a[k],y=b[k];out[k]=!x?y:!y?x:(y.updated>x.updated?y:x)});return out}
-function canon(m){return JSON.stringify(Object.keys(m).sort().map(function(k){var i=m[k];return [i.id,i.kind||'',i.text,i.title,i.body,i.cat,i.created,i.doneAt,!!i.deleted,i.updated]}))}
+function canon(m){return JSON.stringify(Object.keys(m).sort().map(function(k){var i=m[k];return Object.keys(i).sort().map(function(f){return [f,i[f]]})}))}
 var syncing=false, again=false, syncTimer=null;
 function queueSync(){if(!TOKEN)return;clearTimeout(syncTimer);syncTimer=setTimeout(sync,1200)}
 function setStatus(s){if(status!==s){status=s;var el=document.getElementById('st');if(el)el.className='st '+cls()}}
@@ -157,7 +177,8 @@ function render(){
     else if(status==='auth')h+='<div class="banner">Ta clé GitHub ne marche plus<button data-tab="set">Changer</button></div>';
     h+='<div class="tabs"><button data-tab="today" class="'+(tab==='today'?'on':'')+'">À faire'+(T.length?' · '+T.length:'')+'</button>'+
       '<button data-tab="hist" class="'+(tab==='hist'?'on':'')+'">Historique</button>'+
-      '<button data-tab="notes" class="'+(tab==='notes'||tab==='note'?'on':'')+'">Notes</button></div>';
+      '<button data-tab="notes" class="'+(tab==='notes'||tab==='note'?'on':'')+'">Notes</button>'+
+      '<button data-tab="sport" class="'+(tab==='sport'?'on':'')+'">Sport</button></div>';
   }
   if(tab==='today'){
     h+='<form id="f"><input id="in" placeholder="Nouvelle tâche…" autocomplete="off" enterkeyhint="done">'+
@@ -168,6 +189,36 @@ function render(){
       h+='<li class="task"><button class="check" data-check="'+t.id+'" aria-label="Valider">✓</button>'+
         '<span class="dot '+t.cat+'"></span><span class="txt">'+esc(t.text)+'</span>'+
         '<button class="del" data-del="'+t.id+'" aria-label="Supprimer">×</button></li>';});h+='</ul>';}
+  }else if(tab==='sport'){
+    var A=activeSess(), J=justDone&&S.items[justDone];
+    if(A){
+      h+='<div class="sess"><h2>'+esc(A.exo)+' · en cours</h2>';
+      (A.sets||[]).forEach(function(r,ix){h+='<div class="set"><span class="n">Série '+(ix+1)+'</span><span class="r">'+r+' reps</span><button class="del" data-sdel="'+ix+'" aria-label="Supprimer">×</button></div>'});
+      if(!(A.sets||[]).length)h+='<p class="sm" style="padding:8px 4px">Fais ta première série, puis note tes reps 👇</p>';
+      h+='<form id="fs" style="margin-top:16px"><input id="reps" type="number" inputmode="numeric" min="1" placeholder="Reps de la série '+((A.sets||[]).length+1)+'" autocomplete="off">'+
+        '<button class="add" aria-label="Ajouter">+</button></form>'+
+        '<button class="big" id="finish"'+((A.sets||[]).length?'':' disabled style="opacity:.4"')+'>Fini ✓</button>'+
+        '<div style="text-align:center;margin-top:-14px;margin-bottom:20px"><button class="link" id="cancelsess">Annuler la séance</button></div></div>';
+    }else if(J&&!J.deleted){
+      var prev=sessions().filter(function(x){return x.endedAt&&x.exo===J.exo&&x.id!==J.id&&x.endedAt<J.endedAt}).sort(function(a,b){return b.endedAt-a.endedAt})[0];
+      var tot=sum(J.sets), diff=prev?tot-sum(prev.sets):null;
+      h+='<div class="res"><div class="sm">'+esc(J.exo)+'</div><div class="tot">'+tot+'</div><div class="sub">reps en '+J.sets.length+' série'+(J.sets.length>1?'s':'')+'</div>'+
+        (diff===null?'<div class="cmp">Première séance enregistrée 🎉</div>':
+          '<div class="cmp" style="color:'+(diff>0?'var(--sport)':diff<0?'#d9534f':'var(--mut)')+'">'+(diff>0?'+'+diff+' vs la dernière fois 🔥':diff<0?diff+' vs la dernière fois':'Pareil que la dernière fois')+'</div>')+
+        '</div><button class="big" id="okdone">OK</button>';
+    }else{
+      h+='<div class="chips">';exos().forEach(function(n){h+='<button class="chip'+(n===exo?' on':'')+'" data-exo="'+esc(n)+'">'+esc(n)+'</button>'});
+      h+='<button class="chip" id="addexo">+ Exo</button></div>';
+      if(addingExo)h+='<form id="fe"><input id="exoname" placeholder="Nom de l\'exo (ex : Abdos)" autocomplete="off"><button class="add" aria-label="Ajouter">+</button></form>';
+      h+='<button class="big" id="startsess">Commencer · '+esc(exo)+'</button>';
+    }
+    var past=sessions().filter(function(x){return x.endedAt}).sort(function(a,b){return b.endedAt-a.endedAt});
+    if(past.length){var gs={};past.forEach(function(x){var k=key(x.endedAt);(gs[k]=gs[k]||[]).push(x)});
+      Object.keys(gs).sort().reverse().forEach(function(k){
+        h+='<div class="day"><div class="dayh"><b>'+dayLabel(k)+'</b></div>';
+        gs[k].forEach(function(x){var tm=new Date(x.endedAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+          h+='<div class="done"><span class="time">'+tm+'</span><span class="txt"><b>'+esc(x.exo)+'</b> · '+sum(x.sets)+' reps<br><span class="sm">'+x.sets.join(' · ')+'</span></span><button class="del" data-sessdel="'+x.id+'" aria-label="Supprimer">×</button></div>'});
+        h+='</div>';});}
   }else if(tab==='notes'){
     h+='<form id="fn"><input id="nn" placeholder="Nouvelle note (ex : Sport)…" autocomplete="off" enterkeyhint="done">'+
       '<button class="add" aria-label="Créer">+</button></form>';
@@ -213,6 +264,11 @@ function render(){
 
 document.addEventListener('submit',function(e){
   e.preventDefault();
+  if(e.target.id==='fs'){var A=activeSess();var ri=document.getElementById('reps'),rv=parseInt(ri.value,10);if(!A||!(rv>0))return;
+    touch(A,{sets:(A.sets||[]).concat([rv])});render();var r2=document.getElementById('reps');if(r2)r2.focus();return}
+  if(e.target.id==='fe'){var en=document.getElementById('exoname').value.trim();if(!en)return;
+    if(exos().map(function(x){return x.toLowerCase()}).indexOf(en.toLowerCase())<0){var eid=uid();S.items[eid]={id:eid,kind:'exo',name:en,created:Date.now(),deleted:false,updated:0};touch(S.items[eid],{})}
+    exo=exos().filter(function(x){return x.toLowerCase()===en.toLowerCase()})[0]||en;addingExo=false;render();return}
   if(e.target.id==='fn'){var ni=document.getElementById('nn'),nv=ni.value.trim();if(!nv)return;
     var nid=uid();S.items[nid]={id:nid,kind:'note',title:nv,body:'',created:Date.now(),deleted:false,updated:0};
     touch(S.items[nid],{});openNote=nid;tab='note';render();var b=document.getElementById('nb');if(b)b.focus();return}
@@ -223,6 +279,14 @@ document.addEventListener('submit',function(e){
 document.addEventListener('click',async function(e){
   var t=e.target.closest('button');if(!t)return;
   if(t.dataset.tab){tab=t.dataset.tab;setMsg='';render();return}
+  if(t.dataset.exo){exo=t.dataset.exo;render();return}
+  if(t.id==='addexo'){addingExo=!addingExo;render();var x2=document.getElementById('exoname');if(x2)x2.focus();return}
+  if(t.id==='startsess'){var sid=uid();S.items[sid]={id:sid,kind:'session',exo:exo,sets:[],created:Date.now(),endedAt:null,deleted:false,updated:0};touch(S.items[sid],{});justDone=null;render();var r3=document.getElementById('reps');if(r3)r3.focus();return}
+  if(t.dataset.sdel){var A2=activeSess();if(!A2)return;var ss=(A2.sets||[]).slice();ss.splice(+t.dataset.sdel,1);touch(A2,{sets:ss});render();return}
+  if(t.id==='finish'){var A3=activeSess();if(!A3||!(A3.sets||[]).length)return;touch(A3,{endedAt:Date.now()});justDone=A3.id;render();return}
+  if(t.id==='cancelsess'){var A4=activeSess();if(!A4)return;touch(A4,{deleted:true});setUndo('Séance annulée',function(){touch(A4,{deleted:false})});render();return}
+  if(t.id==='okdone'){justDone=null;render();return}
+  if(t.dataset.sessdel){var sx=S.items[t.dataset.sessdel];if(!sx)return;touch(sx,{deleted:true});if(justDone===sx.id)justDone=null;setUndo('Séance supprimée',function(){touch(sx,{deleted:false})});render();return}
   if(t.dataset.open){openNote=t.dataset.open;tab='note';render();return}
   if(t.dataset.ndel){var nn=S.items[t.dataset.ndel];if(!nn)return;touch(nn,{deleted:true});tab='notes';
     setUndo('Note supprimée',function(){touch(nn,{deleted:false})});render();return}
