@@ -58,6 +58,13 @@ ul{list-style:none}
 .panel input{width:100%;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit;padding:12px 14px;border-radius:10px;outline:none;margin-bottom:10px}
 .row{display:flex;gap:8px;flex-wrap:wrap}
 .msg{font-size:13px;margin-top:10px;color:var(--mut)}
+.note{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;color:var(--fg);font:inherit;padding:14px 4px;cursor:pointer}
+.note b{display:block;font-weight:600;margin-bottom:3px}
+.note span{display:block;color:var(--mut);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.link{border:0;background:none;color:var(--mut);font:inherit;font-size:14px;cursor:pointer;padding:6px 0}
+.ntitle{width:100%;border:0;background:none;color:var(--fg);font:inherit;font-size:22px;font-weight:600;outline:none;margin-bottom:12px}
+.nbody{width:100%;min-height:55vh;border:0;background:none;color:var(--fg);font:inherit;line-height:1.6;outline:none;resize:none}
 </style>
 </head>
 <body>
@@ -89,7 +96,9 @@ function dayLabel(k){
   var p=k.split('-');return new Date(+p[0],p[1]-1,+p[2]).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
 }
 var CATS={sport:'Sport',business:'Business'};
-function all(){return Object.keys(S.items).map(function(k){return S.items[k]}).filter(function(i){return !i.deleted})}
+function all(){return Object.keys(S.items).map(function(k){return S.items[k]}).filter(function(i){return !i.deleted&&i.kind!=='note'})}
+function notes(){return Object.keys(S.items).map(function(k){return S.items[k]}).filter(function(i){return !i.deleted&&i.kind==='note'}).sort(function(a,b){return b.updated-a.updated})}
+var openNote=null;
 function todo(){return all().filter(function(i){return !i.doneAt}).sort(function(a,b){return a.created-b.created})}
 function done(){return all().filter(function(i){return i.doneAt})}
 function touch(it,ch){for(var k in ch)it[k]=ch[k];it.updated=Date.now();saveLocal();queueSync();}
@@ -106,7 +115,7 @@ function gh(method,body){
 }
 function merge(a,b){var out={},ids={};Object.keys(a).concat(Object.keys(b)).forEach(function(k){ids[k]=1});
   Object.keys(ids).sort().forEach(function(k){var x=a[k],y=b[k];out[k]=!x?y:!y?x:(y.updated>x.updated?y:x)});return out}
-function canon(m){return JSON.stringify(Object.keys(m).sort().map(function(k){var i=m[k];return [i.id,i.text,i.cat,i.created,i.doneAt,!!i.deleted,i.updated]}))}
+function canon(m){return JSON.stringify(Object.keys(m).sort().map(function(k){var i=m[k];return [i.id,i.kind||'',i.text,i.title,i.body,i.cat,i.created,i.doneAt,!!i.deleted,i.updated]}))}
 var syncing=false, again=false, syncTimer=null;
 function queueSync(){if(!TOKEN)return;clearTimeout(syncTimer);syncTimer=setTimeout(sync,1200)}
 function setStatus(s){if(status!==s){status=s;var el=document.getElementById('st');if(el)el.className='st '+cls()}}
@@ -123,7 +132,7 @@ async function sync(){
       else if(r.status!==404)throw new Error('get '+r.status);
       var before=canon(S.items), merged=merge(S.items,remote);
       S.items=merged;saveLocal();
-      if(canon(merged)!==before)render();
+      if(canon(merged)!==before&&tab!=='note')render();
       if(canon(merged)===canon(remote)){setStatus('ok');return}
       var p=await gh('PUT',{message:'Synchro '+new Date().toISOString(),content:b64e(JSON.stringify({v:1,items:merged})),sha:sha});
       if(p.ok){setStatus('ok');return}
@@ -147,7 +156,8 @@ function render(){
     if(!TOKEN)h+='<div class="banner">Synchro entre appareils désactivée<button data-tab="set">Activer</button></div>';
     else if(status==='auth')h+='<div class="banner">Ta clé GitHub ne marche plus<button data-tab="set">Changer</button></div>';
     h+='<div class="tabs"><button data-tab="today" class="'+(tab==='today'?'on':'')+'">À faire'+(T.length?' · '+T.length:'')+'</button>'+
-      '<button data-tab="hist" class="'+(tab==='hist'?'on':'')+'">Historique</button></div>';
+      '<button data-tab="hist" class="'+(tab==='hist'?'on':'')+'">Historique</button>'+
+      '<button data-tab="notes" class="'+(tab==='notes'||tab==='note'?'on':'')+'">Notes</button></div>';
   }
   if(tab==='today'){
     h+='<form id="f"><input id="in" placeholder="Nouvelle tâche…" autocomplete="off" enterkeyhint="done">'+
@@ -158,6 +168,19 @@ function render(){
       h+='<li class="task"><button class="check" data-check="'+t.id+'" aria-label="Valider">✓</button>'+
         '<span class="dot '+t.cat+'"></span><span class="txt">'+esc(t.text)+'</span>'+
         '<button class="del" data-del="'+t.id+'" aria-label="Supprimer">×</button></li>';});h+='</ul>';}
+  }else if(tab==='notes'){
+    h+='<form id="fn"><input id="nn" placeholder="Nouvelle note (ex : Sport)…" autocomplete="off" enterkeyhint="done">'+
+      '<button class="add" aria-label="Créer">+</button></form>';
+    var N=notes();
+    if(!N.length)h+='<p class="empty">Aucune note pour l\'instant 📝</p>';
+    else N.forEach(function(n){var lines=(n.body||'').split('\n').map(function(x){return x.trim()}).filter(Boolean);
+      h+='<button class="note" data-open="'+n.id+'"><b>'+esc(n.title||'Sans titre')+'</b><span>'+(lines.length?esc(lines.join(' · ')):'Vide')+'</span></button>';});
+  }else if(tab==='note'){
+    var n=S.items[openNote];
+    if(!n||n.deleted){tab='notes';return render();}
+    h+='<div class="nbar"><button class="link" data-tab="notes">← Notes</button><button class="link" data-ndel="'+n.id+'">Supprimer</button></div>'+
+      '<input class="ntitle" id="nt" value="'+esc(n.title||'')+'" placeholder="Titre">'+
+      '<textarea class="nbody" id="nb" placeholder="Écris ici… (une chose par ligne)">'+esc(n.body||'')+'</textarea>';
   }else if(tab==='hist'){
     var D=done();
     if(!D.length)h+='<p class="empty">Ton historique apparaîtra ici dès ta première tâche validée.</p>';
@@ -189,13 +212,20 @@ function render(){
 }
 
 document.addEventListener('submit',function(e){
-  e.preventDefault();var i=document.getElementById('in');if(!i)return;var v=i.value.trim();if(!v)return;
+  e.preventDefault();
+  if(e.target.id==='fn'){var ni=document.getElementById('nn'),nv=ni.value.trim();if(!nv)return;
+    var nid=uid();S.items[nid]={id:nid,kind:'note',title:nv,body:'',created:Date.now(),deleted:false,updated:0};
+    touch(S.items[nid],{});openNote=nid;tab='note';render();var b=document.getElementById('nb');if(b)b.focus();return}
+  var i=document.getElementById('in');if(!i)return;var v=i.value.trim();if(!v)return;
   var id=uid();S.items[id]={id:id,text:v,cat:cat,created:Date.now(),doneAt:null,deleted:false,updated:0};
   touch(S.items[id],{});render();document.getElementById('in').focus();
 });
 document.addEventListener('click',async function(e){
   var t=e.target.closest('button');if(!t)return;
   if(t.dataset.tab){tab=t.dataset.tab;setMsg='';render();return}
+  if(t.dataset.open){openNote=t.dataset.open;tab='note';render();return}
+  if(t.dataset.ndel){var nn=S.items[t.dataset.ndel];if(!nn)return;touch(nn,{deleted:true});tab='notes';
+    setUndo('Note supprimée',function(){touch(nn,{deleted:false})});render();return}
   if(t.id==='cat'){cat=cat==='sport'?'business':'sport';var v=document.getElementById('in').value;render();document.getElementById('in').value=v;return}
   if(t.dataset.del||t.dataset.hdel){
     var it=S.items[t.dataset.del||t.dataset.hdel];if(!it)return;
@@ -218,6 +248,11 @@ document.addEventListener('click',async function(e){
   }
   if(t.id==='logout'){TOKEN='';try{localStorage.removeItem(LS_TOKEN)}catch(err){}status='off';setMsg='Clé retirée de cet appareil.';render();return}
   if(t.id==='syncnow'){setMsg='';sync().then(render);return}
+});
+document.addEventListener('input',function(e){
+  if(tab!=='note')return;var n=S.items[openNote];if(!n)return;
+  if(e.target.id==='nt')touch(n,{title:e.target.value});
+  if(e.target.id==='nb')touch(n,{body:e.target.value});
 });
 document.addEventListener('visibilitychange',function(){if(!document.hidden){render();sync()}});
 setInterval(function(){if(!document.hidden)sync()},60000);
