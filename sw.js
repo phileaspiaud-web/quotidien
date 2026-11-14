@@ -1,5 +1,5 @@
 // Réseau d'abord (pour avoir toujours la dernière version), cache si hors ligne
-const CACHE = 'quotidien-v1';
+const CACHE = 'quotidien-v2';
 self.addEventListener('install', e => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', e => {
