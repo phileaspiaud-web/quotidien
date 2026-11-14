@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121211">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Mon quotidien</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+:root{--bg:#fafaf9;--fg:#1c1c1a;--mut:#8a8a85;--line:#e7e6e3;--card:#fff;--sport:#2f9e6b;--biz:#3b6fd8;}
+@media (prefers-color-scheme:dark){:root{--bg:#121211;--fg:#ededea;--mut:#7c7c77;--line:#262624;--card:#1a1a19;}}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{background:var(--bg)}
+body{color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:520px;margin:0 auto;padding:calc(28px + env(safe-area-inset-top)) 20px calc(90px + env(safe-area-inset-bottom))}
+header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:24px}
+h1{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.date{color:var(--mut);font-size:13px;text-transform:capitalize}
+.tabs{display:flex;gap:4px;background:var(--line);padding:3px;border-radius:10px;margin-bottom:22px}
+.tabs button{flex:1;border:0;background:none;color:var(--mut);font:inherit;font-size:15px;font-weight:500;padding:9px;border-radius:8px;cursor:pointer}
+.tabs button.on{background:var(--card);color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.06)}
+form{display:flex;gap:8px;margin-bottom:18px}
+form input{flex:1;min-width:0;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit;padding:12px 14px;border-radius:10px;outline:none}
+form input:focus{border-color:var(--mut)}
+.cat{border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit;font-size:13px;font-weight:500;padding:0 12px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:none}
+.dot.sport{background:var(--sport)}.dot.business{background:var(--biz)}
+.add{border:0;background:var(--fg);color:var(--bg);font:inherit;font-size:22px;width:46px;border-radius:10px;cursor:pointer}
+ul{list-style:none}
+.task{display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid var(--line);transition:opacity .35s,transform .35s}
+.task.gone{opacity:0;transform:translateX(16px)}
+.check{width:22px;height:22px;border:1.5px solid var(--mut);border-radius:6px;background:none;cursor:pointer;flex:none;display:grid;place-items:center;color:transparent;font-size:13px}
+.task.gone .check{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+.txt{flex:1;line-height:1.35;word-break:break-word}
+.del{border:0;background:none;color:var(--mut);cursor:pointer;font-size:20px;opacity:.45;padding:0 6px}
+.empty{color:var(--mut);text-align:center;padding:40px 0;font-size:14px}
+.day{margin-bottom:26px}
+.dayh{display:flex;justify-content:space-between;font-size:13px;color:var(--mut);margin-bottom:6px;padding:0 4px}
+.dayh b{color:var(--fg);font-weight:600;text-transform:capitalize}
+.done{display:flex;align-items:center;gap:12px;padding:10px 4px;font-size:15px}
+.time{color:var(--mut);font-size:12px;font-variant-numeric:tabular-nums;width:38px;flex:none}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:11px 14px;border-radius:10px;font-size:14px;display:flex;gap:14px;align-items:center;box-shadow:0 4px 16px rgba(0,0,0,.15);white-space:nowrap}
+.toast button{border:0;background:none;color:var(--bg);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+(function(){
+var LS='quotidien-state', S={tasks:[],done:[]};
+try{var l=JSON.parse(localStorage.getItem(LS));if(l)S=l}catch(e){}
+S.tasks=S.tasks||[];S.done=S.done||[];
+var tab='today', cat='sport', undo=null, undoTimer=null;
+
+function save(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function key(d){d=new Date(d);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function dayLabel(k){
+  if(k===key(Date.now()))return "Aujourd'hui";
+  var p=k.split('-');return new Date(+p[0],p[1]-1,+p[2]).toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+}
+var CATS={sport:'Sport',business:'Business'};
+function setUndo(m,fn){undo={msg:m,fn:fn};clearTimeout(undoTimer);undoTimer=setTimeout(function(){undo=null;render()},4000);}
+
+function render(){
+  var r=document.getElementById('root');
+  var today=new Date().toLocaleDateString('fr-FR',{weekday:'long',day:'numeric',month:'long'});
+  var h='<div class="wrap"><header><h1>Mon quotidien</h1><span class="date">'+today+'</span></header>'+
+    '<div class="tabs"><button data-tab="today" class="'+(tab==='today'?'on':'')+'">À faire'+(S.tasks.length?' · '+S.tasks.length:'')+'</button>'+
+    '<button data-tab="hist" class="'+(tab==='hist'?'on':'')+'">Historique</button></div>';
+  if(tab==='today'){
+    h+='<form id="f"><input id="in" placeholder="Nouvelle tâche…" autocomplete="off" enterkeyhint="done">'+
+      '<button type="button" class="cat" id="cat"><span class="dot '+cat+'"></span>'+CATS[cat]+'</button>'+
+      '<button class="add" aria-label="Ajouter">+</button></form>';
+    if(!S.tasks.length)h+='<p class="empty">Rien à faire pour l\'instant ✨</p>';
+    else{h+='<ul>';S.tasks.forEach(function(t){
+      h+='<li class="task"><button class="check" data-check="'+t.id+'" aria-label="Valider">✓</button>'+
+        '<span class="dot '+t.cat+'"></span><span class="txt">'+esc(t.text)+'</span>'+
+        '<button class="del" data-del="'+t.id+'" aria-label="Supprimer">×</button></li>';});h+='</ul>';}
+  }else{
+    if(!S.done.length)h+='<p class="empty">Ton historique apparaîtra ici dès ta première tâche validée.</p>';
+    else{
+      var g={};S.done.forEach(function(d){var k=key(d.doneAt);(g[k]=g[k]||[]).push(d)});
+      Object.keys(g).sort().reverse().forEach(function(k){
+        var items=g[k].slice().sort(function(a,b){return b.doneAt-a.doneAt});
+        h+='<div class="day"><div class="dayh"><b>'+dayLabel(k)+'</b><span>'+items.length+' tâche'+(items.length>1?'s':'')+'</span></div>';
+        items.forEach(function(d){var tm=new Date(d.doneAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+          h+='<div class="done"><span class="time">'+tm+'</span><span class="dot '+d.cat+'"></span><span class="txt">'+esc(d.text)+'</span><button class="del" data-hdel="'+d.id+'" aria-label="Supprimer">×</button></div>';});
+        h+='</div>';});
+    }
+  }
+  h+='</div>';
+  if(undo)h+='<div class="toast">'+undo.msg+'<button id="undo">Annuler</button></div>';
+  r.innerHTML=h;
+}
+
+document.addEventListener('submit',function(e){
+  e.preventDefault();var i=document.getElementById('in'),v=i.value.trim();if(!v)return;
+  S.tasks.push({id:uid(),text:v,cat:cat,created:Date.now()});save();render();
+  document.getElementById('in').focus();
+});
+document.addEventListener('click',function(e){
+  var t=e.target.closest('button');if(!t)return;
+  if(t.dataset.tab){tab=t.dataset.tab;render();return}
+  if(t.id==='cat'){cat=cat==='sport'?'business':'sport';var v=document.getElementById('in').value;render();document.getElementById('in').value=v;return}
+  if(t.dataset.del){var i=S.tasks.findIndex(function(x){return x.id===t.dataset.del});if(i<0)return;var x=S.tasks.splice(i,1)[0];setUndo('Tâche supprimée',function(){S.tasks.splice(i,0,x)});save();render();return}
+  if(t.dataset.hdel){var j=S.done.findIndex(function(x){return x.id===t.dataset.hdel});if(j<0)return;var y=S.done.splice(j,1)[0];setUndo('Supprimée de l\'historique',function(){S.done.splice(j,0,y)});save();render();return}
+  if(t.dataset.check){
+    var id=t.dataset.check, li=t.closest('.task'), task=S.tasks.filter(function(x){return x.id===id})[0];if(!task)return;
+    li.classList.add('gone');
+    setTimeout(function(){
+      var idx=S.tasks.indexOf(task);if(idx<0)return;S.tasks.splice(idx,1);
+      var d={id:task.id,text:task.text,cat:task.cat,created:task.created,doneAt:Date.now()};S.done.push(d);
+      setUndo('Tâche validée',function(){S.done=S.done.filter(function(x){return x!==d});S.tasks.splice(idx,0,task);});
+      save();render();
+    },350);return;
+  }
+  if(t.id==='undo'&&undo){undo.fn();undo=null;clearTimeout(undoTimer);save();render();}
+});
+// Rafraîchit "Aujourd'hui" si l'appli reste ouverte après minuit
+document.addEventListener('visibilitychange',function(){if(!document.hidden)render()});
+
+render();
+if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(function(){})}
+})();
+</script>
+</body>
+</html>

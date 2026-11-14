@@ -1,0 +1,10 @@
+{
+  "appId": "fr.phileas.quotidien",
+  "appName": "Mon quotidien",
+  "webDir": "www",
+  "backgroundColor": "#121211",
+  "server": {
+    "url": "https://phileaspiaud-web.github.io/quotidien/",
+    "cleartext": false
+  }
+}
