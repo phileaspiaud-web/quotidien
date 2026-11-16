@@ -64,6 +64,17 @@ ul{list-style:none}
 .nbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
 .link{border:0;background:none;color:var(--mut);font:inherit;font-size:14px;cursor:pointer;padding:6px 0}
 .ntitle{width:100%;border:0;background:none;color:var(--fg);font:inherit;font-size:22px;font-weight:600;outline:none;margin-bottom:12px}
+.back{display:flex;align-items:center;gap:12px;margin:-6px 0 18px}
+.back h2{font-size:18px;font-weight:600}
+.back .link{font-size:15px;padding:6px 8px 6px 0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tile{aspect-ratio:1/1;border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit;border-radius:22px;padding:16px;text-align:left;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;cursor:pointer;position:relative;transition:transform .12s}
+.tile:active{transform:scale(.96)}
+.tile .ic{position:absolute;top:16px;left:16px;width:48px;height:48px;border-radius:14px;display:grid;place-items:center;font-size:24px}
+.t1{background:linear-gradient(135deg,#34c77b,#1f8f57)}.t2{background:linear-gradient(135deg,#5b8def,#3555c9)}
+.t3{background:linear-gradient(135deg,#f5c84c,#e09a1f)}.t4{background:linear-gradient(135deg,#f0645a,#c93a49)}
+.tile b{font-size:17px;font-weight:600}
+.tile small{color:var(--mut);font-size:13px}
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
 .chip{border:1px solid var(--line);background:var(--card);color:var(--fg);font:inherit;font-size:14px;padding:8px 14px;border-radius:999px;cursor:pointer}
 .chip.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
@@ -98,7 +109,7 @@ try{var old=JSON.parse(localStorage.getItem(LS_OLD));
     (old.done||[]).forEach(function(d){S.items[d.id]={id:d.id,text:d.text,cat:d.cat,created:d.created,doneAt:d.doneAt,deleted:false,updated:now}});
   }}catch(e){}
 
-var tab='today', cat='sport', undo=null, undoTimer=null, status=TOKEN?'sync':'off', setMsg='';
+var tab=(location.hash||'').slice(1)||'home', cat='sport', undo=null, undoTimer=null, status=TOKEN?'sync':'off', setMsg='';
 
 function saveLocal(){try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
@@ -122,6 +133,8 @@ var openNote=null;
 function todo(){return all().filter(function(i){return !i.doneAt}).sort(function(a,b){return a.created-b.created})}
 function done(){return all().filter(function(i){return i.doneAt})}
 function touch(it,ch){for(var k in ch)it[k]=ch[k];it.updated=Date.now();saveLocal();queueSync();}
+function go(t){if(t==='note'&&!openNote)t='notes';if(location.hash!=='#'+t){location.hash=t}else{tab=t;render()}}
+window.addEventListener('hashchange',function(){var t=location.hash.slice(1)||'home';if(t==='note'&&!openNote)t='notes';tab=t;render();window.scrollTo(0,0)});
 function setUndo(m,fn){undo={msg:m,fn:fn};clearTimeout(undoTimer);undoTimer=setTimeout(function(){undo=null;render()},4000);}
 
 // ---- Synchro GitHub
@@ -172,15 +185,26 @@ function render(){
   var title={ok:'Synchronisé',sync:'Synchronisation…',net:'Hors ligne — se synchronisera plus tard',auth:'Clé invalide ou expirée',off:'Synchro désactivée'}[status]||'';
   var h='<div class="wrap"><header><h1>Mon quotidien</h1><div class="hr"><span class="date">'+today+'</span>'+
     '<span id="st" class="st '+cls()+'" title="'+title+'"></span><button class="gear" data-tab="set" aria-label="Réglages">⚙</button></div></header>';
-  if(tab!=='set'){
+  var NAMES={today:'À faire',hist:'Historique',notes:'Notes',sport:'Sport',set:'Réglages'};
+  if(tab==='home'){
     if(!TOKEN)h+='<div class="banner">Synchro entre appareils désactivée<button data-tab="set">Activer</button></div>';
     else if(status==='auth')h+='<div class="banner">Ta clé GitHub ne marche plus<button data-tab="set">Changer</button></div>';
-    h+='<div class="tabs"><button data-tab="today" class="'+(tab==='today'?'on':'')+'">À faire'+(T.length?' · '+T.length:'')+'</button>'+
-      '<button data-tab="hist" class="'+(tab==='hist'?'on':'')+'">Historique</button>'+
-      '<button data-tab="notes" class="'+(tab==='notes'||tab==='note'?'on':'')+'">Notes</button>'+
-      '<button data-tab="sport" class="'+(tab==='sport'?'on':'')+'">Sport</button></div>';
+  }else if(NAMES[tab]){
+    h+='<div class="back"><button class="link" data-tab="home">‹ Accueil</button><h2>'+NAMES[tab]+'</h2></div>';
   }
-  if(tab==='today'){
+  if(tab==='home'){
+    var dToday=done().filter(function(d){return key(d.doneAt)===key(Date.now())}).length;
+    var nN=notes().length, act=activeSess();
+    var lastS=sessions().filter(function(x){return x.endedAt}).sort(function(a,b){return b.endedAt-a.endedAt})[0];
+    var tiles=[
+      ['today','✅','À faire',T.length?T.length+' à faire':'Tout est fait','t1'],
+      ['hist','🗓️','Historique',dToday?dToday+' faite'+(dToday>1?'s':'')+' aujourd\'hui':'Tes tâches faites','t2'],
+      ['notes','📝','Notes',nN?nN+' note'+(nN>1?'s':''):'Aucune note','t3'],
+      ['sport','💪','Sport',act?'Séance en cours':lastS?'Dernière : '+sum(lastS.sets)+' reps':'Aucune séance','t4']];
+    h+='<div class="grid">';tiles.forEach(function(x){
+      h+='<button class="tile" data-tab="'+x[0]+'"><span class="ic '+x[4]+'">'+x[1]+'</span><b>'+x[2]+'</b><small>'+esc(x[3])+'</small></button>'});
+    h+='</div>';
+  }else if(tab==='today'){
     h+='<form id="f"><input id="in" placeholder="Nouvelle tâche…" autocomplete="off" enterkeyhint="done">'+
       '<button type="button" class="cat" id="cat"><span class="dot '+cat+'"></span>'+CATS[cat]+'</button>'+
       '<button class="add" aria-label="Ajouter">+</button></form>';
@@ -255,7 +279,7 @@ function render(){
         '<div class="row"><button class="btn" id="savetok">Enregistrer</button></div>';
     }
     h+='<div class="msg">'+(setMsg||title)+'</div>';
-    h+='<div class="row" style="margin-top:22px"><button class="btn ghost" data-tab="today">← Retour</button></div></div>';
+    h+='<div class="row" style="margin-top:22px"><button class="btn ghost" data-tab="home">← Retour</button></div></div>';
   }
   h+='</div>';
   if(undo)h+='<div class="toast">'+undo.msg+'<button id="undo">Annuler</button></div>';
@@ -271,14 +295,14 @@ document.addEventListener('submit',function(e){
     exo=exos().filter(function(x){return x.toLowerCase()===en.toLowerCase()})[0]||en;addingExo=false;render();return}
   if(e.target.id==='fn'){var ni=document.getElementById('nn'),nv=ni.value.trim();if(!nv)return;
     var nid=uid();S.items[nid]={id:nid,kind:'note',title:nv,body:'',created:Date.now(),deleted:false,updated:0};
-    touch(S.items[nid],{});openNote=nid;tab='note';render();var b=document.getElementById('nb');if(b)b.focus();return}
+    touch(S.items[nid],{});openNote=nid;go('note');var b=document.getElementById('nb');if(b)b.focus();return}
   var i=document.getElementById('in');if(!i)return;var v=i.value.trim();if(!v)return;
   var id=uid();S.items[id]={id:id,text:v,cat:cat,created:Date.now(),doneAt:null,deleted:false,updated:0};
   touch(S.items[id],{});render();document.getElementById('in').focus();
 });
 document.addEventListener('click',async function(e){
   var t=e.target.closest('button');if(!t)return;
-  if(t.dataset.tab){tab=t.dataset.tab;setMsg='';render();return}
+  if(t.dataset.tab){setMsg='';go(t.dataset.tab);return}
   if(t.dataset.exo){exo=t.dataset.exo;render();return}
   if(t.id==='addexo'){addingExo=!addingExo;render();var x2=document.getElementById('exoname');if(x2)x2.focus();return}
   if(t.id==='startsess'){var sid=uid();S.items[sid]={id:sid,kind:'session',exo:exo,sets:[],created:Date.now(),endedAt:null,deleted:false,updated:0};touch(S.items[sid],{});justDone=null;render();var r3=document.getElementById('reps');if(r3)r3.focus();return}
@@ -287,8 +311,8 @@ document.addEventListener('click',async function(e){
   if(t.id==='cancelsess'){var A4=activeSess();if(!A4)return;touch(A4,{deleted:true});setUndo('Séance annulée',function(){touch(A4,{deleted:false})});render();return}
   if(t.id==='okdone'){justDone=null;render();return}
   if(t.dataset.sessdel){var sx=S.items[t.dataset.sessdel];if(!sx)return;touch(sx,{deleted:true});if(justDone===sx.id)justDone=null;setUndo('Séance supprimée',function(){touch(sx,{deleted:false})});render();return}
-  if(t.dataset.open){openNote=t.dataset.open;tab='note';render();return}
-  if(t.dataset.ndel){var nn=S.items[t.dataset.ndel];if(!nn)return;touch(nn,{deleted:true});tab='notes';
+  if(t.dataset.open){openNote=t.dataset.open;go('note');return}
+  if(t.dataset.ndel){var nn=S.items[t.dataset.ndel];if(!nn)return;touch(nn,{deleted:true});tab='notes';history.replaceState(null,'','#notes');
     setUndo('Note supprimée',function(){touch(nn,{deleted:false})});render();return}
   if(t.id==='cat'){cat=cat==='sport'?'business':'sport';var v=document.getElementById('in').value;render();document.getElementById('in').value=v;return}
   if(t.dataset.del||t.dataset.hdel){
@@ -308,7 +332,7 @@ document.addEventListener('click',async function(e){
     var ok=false;try{var r=await gh('GET');ok=(r.status===200||r.status===404)}catch(err){}
     if(!ok){TOKEN=prev;setMsg='Cette clé ne fonctionne pas. Vérifie qu\'elle a accès à quotidien-data avec Contents en Read and write.';render();return}
     try{localStorage.setItem(LS_TOKEN,TOKEN)}catch(err){}
-    status='sync';setMsg='';tab='today';render();sync();return;
+    status='sync';setMsg='';go('home');sync();return;
   }
   if(t.id==='logout'){TOKEN='';try{localStorage.removeItem(LS_TOKEN)}catch(err){}status='off';setMsg='Clé retirée de cet appareil.';render();return}
   if(t.id==='syncnow'){setMsg='';sync().then(render);return}
