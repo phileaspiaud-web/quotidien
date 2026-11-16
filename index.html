@@ -206,12 +206,11 @@ function render(){
     h+='</div>';
   }else if(tab==='today'){
     h+='<form id="f"><input id="in" placeholder="Nouvelle tâche…" autocomplete="off" enterkeyhint="done">'+
-      '<button type="button" class="cat" id="cat"><span class="dot '+cat+'"></span>'+CATS[cat]+'</button>'+
       '<button class="add" aria-label="Ajouter">+</button></form>';
     if(!T.length)h+='<p class="empty">Rien à faire pour l\'instant ✨</p>';
     else{h+='<ul>';T.forEach(function(t){
       h+='<li class="task"><button class="check" data-check="'+t.id+'" aria-label="Valider">✓</button>'+
-        '<span class="dot '+t.cat+'"></span><span class="txt">'+esc(t.text)+'</span>'+
+        '<span class="txt">'+esc(t.text)+'</span>'+
         '<button class="del" data-del="'+t.id+'" aria-label="Supprimer">×</button></li>';});h+='</ul>';}
   }else if(tab==='sport'){
     var A=activeSess(), J=justDone&&S.items[justDone];
@@ -265,7 +264,7 @@ function render(){
         var items=g[k].sort(function(a,b){return b.doneAt-a.doneAt});
         h+='<div class="day"><div class="dayh"><b>'+dayLabel(k)+'</b><span>'+items.length+' tâche'+(items.length>1?'s':'')+'</span></div>';
         items.forEach(function(d){var tm=new Date(d.doneAt).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
-          h+='<div class="done"><span class="time">'+tm+'</span><span class="dot '+d.cat+'"></span><span class="txt">'+esc(d.text)+'</span><button class="del" data-hdel="'+d.id+'" aria-label="Supprimer">×</button></div>';});
+          h+='<div class="done"><span class="time">'+tm+'</span><span class="txt">'+esc(d.text)+'</span><button class="del" data-hdel="'+d.id+'" aria-label="Supprimer">×</button></div>';});
         h+='</div>';});
     }
   }else{
